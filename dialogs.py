@@ -24,9 +24,10 @@ from themes import THEMES, get_theme, get_all_themes, get_theme_stylesheet
 from icons import IconRenderer
 from utils import center_window, get_scaled_size, is_in_startup
 from config import (CONFIG_DIR, CACHE_FILE, CURRENT_VERSION, REPO_URL,
-                    DISCORD_INVITE, save_config)
+                    DISCORD_INVITE, UPDATE_ZIP_URL, APP_DIR, save_config)
 from threads import (GameDLCDownloadThread, SteamDLCSearchThread, SteamSearchThread,
-                     NameFetcher, ZipCreationThread, UpdateChecker, UpdateDownloader)
+                     NameFetcher, ZipCreationThread, UpdateChecker, UpdateDownloader,
+                     UpdateInstaller)
 
 try:
     import pypresence  # noqa
@@ -865,22 +866,60 @@ class SettingsDialog(QDialog):
             self.download_btn.setEnabled(False)
 
     def _download_update(self):
-        url = "https://github.com/RvMillions/Furry-Tools/archive/refs/heads/main.zip"
-        save_path = os.path.join(tempfile.gettempdir(), f"FurryTools_Update_{self.latest_version}.zip")
+        save_path = os.path.join(tempfile.gettempdir(), "FurryTools_Update.zip")
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.download_btn.setEnabled(False)
-        self.update_status_label.setText("Téléchargement...")
-        self.update_downloader = UpdateDownloader(url, save_path)
+        self.update_status_label.setText("Téléchargement de la mise à jour...")
+        self.update_downloader = UpdateDownloader(UPDATE_ZIP_URL, save_path)
         self.update_downloader.progress.connect(self.progress_bar.setValue)
-        self.update_downloader.finished.connect(self._download_done)
+        self.update_downloader.finished.connect(self._on_download_done)
         self.update_downloader.error.connect(self._download_err)
         self.update_downloader.start()
 
-    def _download_done(self, path):
+    def _on_download_done(self, path):
+        # Version "frozen" (exe) : on ne peut pas remplacer les .py en cours d'exécution.
+        if getattr(sys, 'frozen', False):
+            self.progress_bar.setVisible(False)
+            QMessageBox.information(
+                self, "Mise à jour téléchargée",
+                f"Téléchargée dans :\n{path}\n\nRemplacez les fichiers manuellement.")
+            return
+        self.update_status_label.setText("Installation de la mise à jour...")
+        self.progress_bar.setValue(0)
+        self.update_installer = UpdateInstaller(path, APP_DIR)
+        self.update_installer.progress.connect(self.progress_bar.setValue)
+        self.update_installer.finished.connect(self._on_install_done)
+        self.update_installer.error.connect(self._download_err)
+        self.update_installer.start()
+
+    def _on_install_done(self, msg):
         self.progress_bar.setVisible(False)
-        QMessageBox.information(self, "Mise à jour téléchargée",
-                               f"Téléchargée dans :\n{path}\n\nDécompressez-la pour remplacer les fichiers.")
+        self.update_status_label.setText("Mise à jour installée.")
+        if QMessageBox.question(
+                self, "Mise à jour installée",
+                f"{msg}.\n\nRedémarrer Furry Tools maintenant pour appliquer la mise à jour ?",
+                QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
+            self._restart_app()
+
+    def _restart_app(self):
+        import subprocess
+        from utils import release_instance_mutex
+        main_py = os.path.join(APP_DIR, 'main.py')
+        try:
+            # Libérer le mutex AVANT de relancer, sinon la nouvelle instance
+            # croit qu'une autre est déjà en cours et s'arrête aussitôt.
+            release_instance_mutex()
+            if getattr(sys, 'frozen', False):
+                subprocess.Popen([sys.executable], cwd=APP_DIR)
+            else:
+                subprocess.Popen([sys.executable, main_py], cwd=APP_DIR)
+        except Exception as e:
+            QMessageBox.warning(self, "Redémarrage",
+                                f"Redémarrage automatique impossible : {e}\n"
+                                "Relancez l'application manuellement.")
+            return
+        QApplication.quit()
 
     def _download_err(self, msg):
         self.progress_bar.setVisible(False)
@@ -893,7 +932,7 @@ class SettingsDialog(QDialog):
     def closeEvent(self, event):
         # Stopper tous les threads en arrière-plan pour éviter les crashs
         # sur des widgets déjà détruits
-        for attr in ('name_fetcher', 'update_checker', 'update_downloader'):
+        for attr in ('name_fetcher', 'update_checker', 'update_downloader', 'update_installer'):
             th = getattr(self, attr, None)
             if th and hasattr(th, 'isRunning') and th.isRunning():
                 th.quit()

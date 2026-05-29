@@ -2,7 +2,9 @@
 import os
 import re
 import json
+import shutil
 import zipfile
+import tempfile
 import urllib.request
 import urllib.parse
 
@@ -276,6 +278,66 @@ class UpdateDownloader(QThread):
             self.finished.emit(self.save_path)
         except Exception as e:
             self.error.emit(str(e))
+
+
+class UpdateInstaller(QThread):
+    """Installe une mise a jour : extrait l'archive ZIP et remplace les
+    fichiers de code dans le dossier de l'application.
+
+    Les dossiers de donnees utilisateur (themes/, plugins/) ainsi que les
+    dossiers techniques (.git, __pycache__...) sont preserves.
+    """
+    progress = pyqtSignal(int)
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    SKIP_TOP = {'themes', 'plugins', '__pycache__', '.git', '.github', 'logs'}
+
+    def __init__(self, zip_path, app_dir):
+        super().__init__()
+        self.zip_path = zip_path
+        self.app_dir = app_dir
+
+    def run(self):
+        tmp = None
+        try:
+            tmp = tempfile.mkdtemp(prefix='ft_update_')
+            with zipfile.ZipFile(self.zip_path, 'r') as zf:
+                zf.extractall(tmp)
+
+            # L'archive GitHub contient un dossier racine unique (ex: Furry_Tools-main)
+            dirs = [os.path.join(tmp, e) for e in os.listdir(tmp)
+                    if os.path.isdir(os.path.join(tmp, e))]
+            src_root = dirs[0] if len(dirs) == 1 else tmp
+
+            # Lister les fichiers a copier (hors dossiers proteges)
+            files = []
+            for dirpath, dirnames, filenames in os.walk(src_root):
+                rel_dir = os.path.relpath(dirpath, src_root)
+                top = '' if rel_dir == '.' else rel_dir.replace('\\', '/').split('/')[0]
+                if top in self.SKIP_TOP:
+                    dirnames[:] = []
+                    continue
+                dirnames[:] = [d for d in dirnames if d not in self.SKIP_TOP]
+                for fn in filenames:
+                    files.append(os.path.join(dirpath, fn))
+
+            total = max(1, len(files))
+            copied = 0
+            for i, src in enumerate(files):
+                rel = os.path.relpath(src, src_root)
+                dest = os.path.join(self.app_dir, rel)
+                os.makedirs(os.path.dirname(dest) or self.app_dir, exist_ok=True)
+                shutil.copy2(src, dest)
+                copied += 1
+                self.progress.emit(int((i + 1) * 100 / total))
+
+            self.finished.emit(f"{copied} fichier(s) mis a jour")
+        except Exception as e:
+            self.error.emit(str(e))
+        finally:
+            if tmp:
+                shutil.rmtree(tmp, ignore_errors=True)
 
 
 class SteamPathDetector(QThread):

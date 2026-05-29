@@ -3,6 +3,9 @@ import os
 import sys
 import json
 
+# Dossier d'installation de l'application (là où vivent les .py et version.txt)
+APP_DIR = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+
 CONFIG_DIR = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'FurryTools')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
 CACHE_FILE = os.path.join(CONFIG_DIR, 'cache.json')
@@ -11,6 +14,8 @@ DISCORD_INVITE = "https://discord.gg/Wx7wP9fmUf"
 REPO_URL = "https://github.com/RVtranchent/Furry_Tools"
 VERSION_URL = "https://raw.githubusercontent.com/RVtranchent/Furry_Tools/main/version.txt"
 API_URL = "https://api.github.com/repos/RVtranchent/Furry_Tools/releases/latest"
+# Archive ZIP de la branche main pour l'installation de la mise à jour
+UPDATE_ZIP_URL = "https://github.com/RVtranchent/Furry_Tools/archive/refs/heads/main.zip"
 
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
