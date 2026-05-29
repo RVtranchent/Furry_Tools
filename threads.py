@@ -102,6 +102,7 @@ class SteamDLCSearchThread(QThread):
                         pass
         except Exception as e:
             self.error_occurred.emit(str(e))
+            return
         if not self._cancelled:
             self.results_ready.emit(results)
 
