@@ -1,0 +1,56 @@
+====================================================
+  FurryTools - Guide de creation de themes
+====================================================
+
+Placez vos fichiers .json dans ce dossier.
+Ils apparaitront dans le menu Themes du clic droit.
+
+----------------------------------------------------
+STRUCTURE D'UN THEME (.json)
+----------------------------------------------------
+
+{
+    "name":          "Nom de mon theme",
+    "bg_primary":    "#1a1a2e",
+    "bg_secondary":  "#16213e",
+    "bg_tertiary":   "#0f3460",
+    "text_primary":  "#e0e0e0",
+    "text_secondary":"#b0b0b0",
+    "border":        "#444466",
+    "border_focus":  "#6666aa",
+    "accent":        "#5555cc",
+    "accent_hover":  "#7777dd"
+}
+
+----------------------------------------------------
+ROLE DE CHAQUE COULEUR
+----------------------------------------------------
+
+bg_primary    -> Fond principal des fenetres et menus
+bg_secondary  -> Fond secondaire (items, zones sombres)
+bg_tertiary   -> Fond tertiaire (survol, selections)
+text_primary  -> Texte principal
+text_secondary-> Texte secondaire, labels discrets
+border        -> Bordures des elements
+border_focus  -> Bordures au focus / element actif
+accent        -> Couleur principale (boutons, barre prog.)
+accent_hover  -> Couleur au survol des elements accent
+
+----------------------------------------------------
+REGLES
+----------------------------------------------------
+
+- Toutes les couleurs sont en hexadecimal (#rrggbb).
+- Le champ "name" definit le nom dans le menu.
+  S'il est absent, le nom du fichier est utilise.
+- Les fichiers commencant par _ sont ignores.
+- Utilisez "Recharger les themes" dans le menu pour
+  voir les nouveaux themes sans redemarrer.
+
+----------------------------------------------------
+EXEMPLE
+----------------------------------------------------
+
+Voir le fichier exemple_theme.json dans ce dossier.
+
+====================================================
