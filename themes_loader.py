@@ -98,24 +98,30 @@ _EXEMPLE_JSON = """\
 # ---------------------------------------------------------------------------
 
 def ensure_themes_dir():
-    """Cree le dossier themes/ et les fichiers de demarrage si absents."""
+    """Cree le dossier themes/ et les fichiers de demarrage.
+
+    Les fichiers d'exemple (README + theme de demonstration) ne sont ecrits
+    qu'a la PREMIERE creation du dossier. Ainsi, si l'utilisateur supprime le
+    theme d'exemple, il ne reapparait pas a chaque rechargement.
+    """
+    first_time = not os.path.isdir(THEMES_DIR)
     os.makedirs(THEMES_DIR, exist_ok=True)
+    if not first_time:
+        return
 
     readme = os.path.join(THEMES_DIR, "LISEZ_MOI.txt")
-    if not os.path.exists(readme):
-        try:
-            with open(readme, "w", encoding="utf-8") as f:
-                f.write(_README)
-        except OSError:
-            pass
+    try:
+        with open(readme, "w", encoding="utf-8") as f:
+            f.write(_README)
+    except OSError:
+        pass
 
     exemple = os.path.join(THEMES_DIR, "exemple_theme.json")
-    if not os.path.exists(exemple):
-        try:
-            with open(exemple, "w", encoding="utf-8") as f:
-                f.write(_EXEMPLE_JSON)
-        except OSError:
-            pass
+    try:
+        with open(exemple, "w", encoding="utf-8") as f:
+            f.write(_EXEMPLE_JSON)
+    except OSError:
+        pass
 
 
 def load_custom_themes():

@@ -1315,22 +1315,38 @@ class ThemeManagerDialog(QDialog):
                 QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
             return
         from themes_loader import delete_custom_theme, load_custom_themes, theme_file_map
+
+        # Si le thème à supprimer est celui actuellement appliqué, on bascule
+        # d'abord sur un autre thème : on ne supprime jamais le thème « en cours
+        # d'usage », puis on supprime le fichier voulu.
+        if self.config.get('theme') == name:
+            fallback = self._fallback_theme(name)
+            self.config['theme'] = fallback
+            if self.parent_window and hasattr(self.parent_window, '_apply_theme'):
+                self.parent_window._apply_theme(fallback)
+            self._restyle()
+
         ok, err = delete_custom_theme(name)
         if not ok:
             QMessageBox.critical(self, "Erreur", f"Impossible de supprimer : {err}")
             return
+
         self._custom_themes = load_custom_themes()
-        # Si le thème supprimé était actif, revenir au thème par défaut.
-        if self.config.get('theme') == name:
-            self.config['theme'] = 'Violet profond'
-            if self.parent_window and hasattr(self.parent_window, '_apply_theme'):
-                self.parent_window._apply_theme('Violet profond')
         self._file_map = theme_file_map()
         self.theme_list.set_file_map(self._file_map)
         self._restyle()
         self._populate_list()
         self._update_buttons()
         QMessageBox.information(self, "Supprimé", f"Thème « {name} » supprimé.")
+
+    def _fallback_theme(self, exclude):
+        """Choisit un thème de repli intégré, différent de `exclude`."""
+        if exclude != 'Violet profond' and 'Violet profond' in THEMES:
+            return 'Violet profond'
+        for n in THEMES:
+            if n != exclude:
+                return n
+        return 'Violet profond'
 
 
 # =============================================================================
