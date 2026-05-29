@@ -72,7 +72,54 @@ THEMES = {
         'text_primary': '#ffe6e6', 'text_secondary': '#ffcccc',
         'border': '#b46c6c', 'border_focus': '#d48c8c',
         'accent': '#a45c5c', 'accent_hover': '#c47c7c'
+    },
+    "Ardoise": {
+        'bg_primary': '#1a1d24', 'bg_secondary': '#262b34', 'bg_tertiary': '#333944',
+        'text_primary': '#e6eaf0', 'text_secondary': '#aab2c0',
+        'border': '#3d4654', 'border_focus': '#5a6678',
+        'accent': '#4a6f9c', 'accent_hover': '#5d88bd'
+    },
+    "Cyberpunk": {
+        'bg_primary': '#0d0221', 'bg_secondary': '#1a0a3a', 'bg_tertiary': '#2a1252',
+        'text_primary': '#f5e6ff', 'text_secondary': '#c0a0e0',
+        'border': '#6a1f9c', 'border_focus': '#ff2bd6',
+        'accent': '#d61f9c', 'accent_hover': '#ff3fc4'
+    },
+    "Émeraude": {
+        'bg_primary': '#0c1f17', 'bg_secondary': '#143126', 'bg_tertiary': '#1d4434',
+        'text_primary': '#e0f7ec', 'text_secondary': '#a8d8c2',
+        'border': '#2a6c52', 'border_focus': '#3d9470',
+        'accent': '#1ea86b', 'accent_hover': '#2bc483'
+    },
+    "Océan": {
+        'bg_primary': '#0b1f2a', 'bg_secondary': '#13313f', 'bg_tertiary': '#1c4250',
+        'text_primary': '#e0f2f7', 'text_secondary': '#a8cdd8',
+        'border': '#2a5a6c', 'border_focus': '#3d7d94',
+        'accent': '#1e88a8', 'accent_hover': '#2ba0c4'
+    },
+    "Coucher de soleil": {
+        'bg_primary': '#2a1410', 'bg_secondary': '#3f2018', 'bg_tertiary': '#542c20',
+        'text_primary': '#ffece0', 'text_secondary': '#f0c8b0',
+        'border': '#8c4f3a', 'border_focus': '#b36e4f',
+        'accent': '#d4682a', 'accent_hover': '#e8843f'
+    },
+    "Ambre": {
+        'bg_primary': '#241d0c', 'bg_secondary': '#362c14', 'bg_tertiary': '#473b1d',
+        'text_primary': '#fff4d6', 'text_secondary': '#e0cfa0',
+        'border': '#8c7333', 'border_focus': '#b39646',
+        'accent': '#d4a017', 'accent_hover': '#e8b62b'
     }
+}
+
+
+# Regroupement des thèmes intégrés par famille, pour garder le menu compact
+# (on évite d'afficher une longue liste plate, mauvaise pour l'UX).
+THEME_CATEGORIES = {
+    "Sombres":     ["Sombre", "Gris foncé", "Noir", "Ardoise", "Bleu nuit"],
+    "Violets":     ["Violet profond", "Violet clair", "Cyberpunk"],
+    "Galaxie":     ["Galaxy", "Galaxy nébuleuse", "Galaxy profond"],
+    "Nature":      ["Vert forêt", "Émeraude", "Océan"],
+    "Chaleureux":  ["Rose bonbon", "Rouge rubis", "Coucher de soleil", "Ambre"],
 }
 
 

@@ -15,8 +15,9 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QMenu, QMessageBox,
 
 from config import (CONFIG_DIR, CACHE_FILE, DISCORD_CLIENT_ID, DISCORD_INVITE,
                     REPO_URL, load_config, save_config, load_cache, save_cache)
-from themes import get_theme, get_all_themes
-from themes_loader import ensure_themes_dir, load_custom_themes, THEMES_DIR
+from themes import get_theme, get_all_themes, THEME_CATEGORIES
+from themes_loader import (ensure_themes_dir, load_custom_themes, import_theme_file,
+                           THEMES_DIR)
 from icons import IconRenderer
 from threads import (SteamPathDetector, NameFetcher, GameDLCDownloadThread,
                      ZipExtractThread)
@@ -128,27 +129,55 @@ class FurryTools(QWidget):
 
         self.context_menu.addSeparator()
 
-        # --- Themes ---
+        # --- Themes (menu compact : catégories + thèmes perso) ---
         themes_menu = self.context_menu.addMenu("Themes")
         themes_menu.setStyleSheet(style)
         current_theme = self.config.get('theme', 'Violet profond')
-        all_themes = get_all_themes(self._custom_themes)
-        for theme_name in all_themes:
-            act = themes_menu.addAction(theme_name)
-            act.setCheckable(True)
-            act.setChecked(theme_name == current_theme)
-            act.triggered.connect(
-                lambda checked=False, n=theme_name: self._apply_theme(n))
+
+        cur_act = themes_menu.addAction("Actuel : " + current_theme)
+        cur_act.setEnabled(False)
         themes_menu.addSeparator()
-        reload_th = themes_menu.addAction("Recharger les themes")
+
+        # Thèmes intégrés, regroupés par famille pour ne pas surcharger le menu
+        builtin_menu = themes_menu.addMenu("Thèmes intégrés")
+        builtin_menu.setStyleSheet(style)
+        for category, names in THEME_CATEGORIES.items():
+            cat_menu = builtin_menu.addMenu(category)
+            cat_menu.setStyleSheet(style)
+            for theme_name in names:
+                act = cat_menu.addAction(theme_name)
+                act.setCheckable(True)
+                act.setChecked(theme_name == current_theme)
+                act.triggered.connect(
+                    lambda checked=False, n=theme_name: self._apply_theme(n))
+
+        # Thèmes personnalisés de l'utilisateur
+        my_menu = themes_menu.addMenu("Mes thèmes")
+        my_menu.setStyleSheet(style)
+        if self._custom_themes:
+            for theme_name in self._custom_themes:
+                act = my_menu.addAction(theme_name)
+                act.setCheckable(True)
+                act.setChecked(theme_name == current_theme)
+                act.triggered.connect(
+                    lambda checked=False, n=theme_name: self._apply_theme(n))
+        else:
+            empty = my_menu.addAction("Aucun thème personnalisé")
+            empty.setEnabled(False)
+
+        themes_menu.addSeparator()
+        manage_th = themes_menu.addAction("Gérer les thèmes...")
+        manage_th.setIcon(IconRenderer.icon('clipboard', 18, QColor(ic)))
+        manage_th.triggered.connect(self._open_theme_manager)
+        create_th = themes_menu.addAction("Créer un thème...")
+        create_th.setIcon(IconRenderer.icon('paw', 18, QColor(ic)))
+        create_th.triggered.connect(self._open_theme_editor)
+        themes_menu.addSeparator()
+        reload_th = themes_menu.addAction("Recharger les thèmes")
         reload_th.setIcon(IconRenderer.icon('arrow_right', 18, QColor(ic)))
         reload_th.triggered.connect(self._reload_themes)
         themes_menu.addAction("Ouvrir le dossier themes").triggered.connect(
             self._open_themes_folder)
-        themes_menu.addSeparator()
-        create_th = themes_menu.addAction("Creer un theme...")
-        create_th.setIcon(IconRenderer.icon('paw', 18, QColor(ic)))
-        create_th.triggered.connect(self._open_theme_editor)
 
         # --- Paramètres ---
         self.context_menu.addAction("Paramètres").triggered.connect(self.open_settings)
@@ -432,6 +461,17 @@ class FurryTools(QWidget):
             QMessageBox.critical(self, "Erreur", f"Impossible d'ouvrir l'éditeur : {e}")
             traceback.print_exc()
 
+    def _open_theme_manager(self):
+        try:
+            from dialogs import ThemeManagerDialog
+            ThemeManagerDialog(self, self.config, self._custom_themes).exec_()
+            # Le gestionnaire a pu supprimer/appliquer un thème : on resynchronise.
+            self._custom_themes = load_custom_themes()
+            self._build_menu()
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible d'ouvrir le gestionnaire : {e}")
+            traceback.print_exc()
+
     def _reload_plugins(self):
         from plugins_loader import load_plugins
         from PyQt5.QtWidgets import QToolTip
@@ -711,7 +751,7 @@ class FurryTools(QWidget):
             for url in event.mimeData().urls():
                 if url.isLocalFile():
                     p = url.toLocalFile().lower()
-                    if p.endswith('.lua') or p.endswith('.zip'):
+                    if p.endswith('.lua') or p.endswith('.zip') or p.endswith('.json'):
                         self._set_drop_active(True)
                         event.acceptProposedAction()
                         return
@@ -723,16 +763,58 @@ class FurryTools(QWidget):
 
     def dropEvent(self, event):
         self._set_drop_active(False)
+        # Trier les fichiers déposés : thèmes (.json) d'un côté, jeux (.lua/.zip) de l'autre
+        theme_files, game_files = [], []
+        for url in event.mimeData().urls():
+            if not url.isLocalFile():
+                continue
+            fp = url.toLocalFile()
+            lp = fp.lower()
+            if lp.endswith('.json'):
+                theme_files.append(fp)
+            elif lp.endswith('.lua') or lp.endswith('.zip'):
+                game_files.append(fp)
+
+        if theme_files:
+            self._import_dropped_themes(theme_files)
+        if game_files:
+            self._import_dropped_games(game_files)
+        if not theme_files and not game_files:
+            QMessageBox.information(self, "Info",
+                                    "Aucun fichier reconnu (.lua, .zip ou .json).")
+
+    def _import_dropped_themes(self, paths):
+        """Importe des fichiers .json déposés comme thèmes personnalisés."""
+        imported, errors = [], []
+        for p in paths:
+            ok, info = import_theme_file(p)
+            if ok:
+                imported.append(info)
+            else:
+                errors.append(f"{os.path.basename(p)} : {info}")
+        if imported:
+            self._custom_themes = load_custom_themes()
+            self._build_menu()
+        parts = []
+        if imported:
+            parts.append(f"{len(imported)} thème(s) importé(s) : " + ", ".join(imported))
+            parts.append("Appliquez-le via clic droit > Themes > Mes thèmes.")
+        if errors:
+            parts.append("Erreurs :\n" + "\n".join(errors))
+        if imported:
+            QMessageBox.information(self, "Thèmes", "\n\n".join(parts))
+        else:
+            QMessageBox.warning(self, "Thèmes", "\n\n".join(parts) or "Aucun thème valide.")
+
+    def _import_dropped_games(self, paths):
+        """Copie/extrait les fichiers .lua et .zip déposés vers le dossier Steam."""
         if not self.target_folder:
             QMessageBox.warning(self, "Erreur", "Dossier Steam non trouvé")
             return
         try:
             os.makedirs(self.target_folder, exist_ok=True)
             copied, extracted = [], []
-            for url in event.mimeData().urls():
-                if not url.isLocalFile():
-                    continue
-                fp = url.toLocalFile()
+            for fp in paths:
                 lp = fp.lower()
                 if lp.endswith('.lua'):
                     shutil.copy(fp, self.target_folder)

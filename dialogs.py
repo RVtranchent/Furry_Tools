@@ -9,8 +9,9 @@ import tempfile
 import urllib.request
 from datetime import datetime
 
-from PyQt5.QtCore import Qt, QUrl, QSize, QTimer
-from PyQt5.QtGui import QColor, QCursor, QDesktopServices, QFont, QFontDatabase, QPixmap
+from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QMimeData
+from PyQt5.QtGui import (QColor, QCursor, QDesktopServices, QFont, QFontDatabase,
+                         QPixmap, QDrag)
 from PyQt5.QtWidgets import (QApplication, QColorDialog, QDialog, QFrame, QWidget,
                              QLabel, QMenu, QMessageBox, QAction, QVBoxLayout,
                              QHBoxLayout, QGridLayout, QSlider, QSpinBox,
@@ -1144,6 +1145,192 @@ class ThemeEditorDialog(QDialog):
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Erreur", f"Impossible d'enregistrer : {e}")
+
+
+# =============================================================================
+# Gestionnaire de thèmes (appliquer / supprimer / exporter / partager)
+# =============================================================================
+class _ThemeDragList(QListWidget):
+    """Liste qui permet de glisser un thème personnalisé hors de la fenêtre
+    (vers Discord, le bureau...) sous forme de fichier .json à partager."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setDragEnabled(True)
+        self._file_map = {}
+
+    def set_file_map(self, mapping):
+        self._file_map = mapping or {}
+
+    def startDrag(self, supported_actions):
+        item = self.currentItem()
+        if not item:
+            return
+        name = item.data(Qt.UserRole)
+        path = self._file_map.get(name)
+        if not path or not os.path.exists(path):
+            return
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(path)])
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        drag.exec_(Qt.CopyAction)
+
+
+class ThemeManagerDialog(QDialog):
+    """Gérer tous les thèmes : appliquer, supprimer (perso), exporter / partager."""
+
+    def __init__(self, parent, config, custom_themes=None):
+        super().__init__(parent)
+        self.parent_window = parent
+        self.config = config
+        self._custom_themes = custom_themes or {}
+        self.setStyleSheet(get_theme_stylesheet(config.get('theme', 'Violet profond'),
+                                                self._custom_themes))
+        self.setWindowTitle("Gestionnaire de thèmes")
+        self.setModal(True)
+        w, h = get_scaled_size(560, 560)
+        self.resize(w, h)
+        self._build()
+        center_window(self)
+
+    def _build(self):
+        from themes_loader import theme_file_map
+        t = get_theme(self.config.get('theme', 'Violet profond'), self._custom_themes)
+        self._file_map = theme_file_map()
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(15, 15, 15, 15)
+
+        info = QLabel(
+            "Double-cliquez pour appliquer un thème.\n"
+            "Glissez un thème personnalisé hors de la fenêtre pour le partager "
+            "(Discord, bureau...).")
+        info.setWordWrap(True)
+        info.setStyleSheet(f"color:{t['text_secondary']}; font-size:10px;")
+        layout.addWidget(info)
+
+        self.theme_list = _ThemeDragList()
+        self.theme_list.setStyleSheet(_list_style(t))
+        self.theme_list.set_file_map(self._file_map)
+        self.theme_list.itemSelectionChanged.connect(self._update_buttons)
+        self.theme_list.itemDoubleClicked.connect(lambda _: self._apply())
+        layout.addWidget(self.theme_list)
+        self._populate_list()
+
+        btns = QHBoxLayout()
+        self.apply_btn = QPushButton("Appliquer")
+        self.apply_btn.clicked.connect(self._apply)
+        self.export_btn = QPushButton("Exporter / Partager")
+        self.export_btn.clicked.connect(self._export)
+        self.delete_btn = QPushButton("Supprimer")
+        self.delete_btn.clicked.connect(self._delete)
+        btns.addWidget(self.apply_btn)
+        btns.addWidget(self.export_btn)
+        btns.addWidget(self.delete_btn)
+        layout.addLayout(btns)
+
+        close_row = QHBoxLayout()
+        close_row.addStretch()
+        close = QPushButton("Fermer")
+        close.clicked.connect(self.accept)
+        close_row.addWidget(close)
+        layout.addLayout(close_row)
+
+        self._update_buttons()
+
+    def _populate_list(self):
+        self.theme_list.clear()
+        current = self.config.get('theme', 'Violet profond')
+        for name in THEMES:
+            label = ("● " if name == current else "     ") + name + "   (intégré)"
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, name)
+            item.setData(Qt.UserRole + 1, 'builtin')
+            self.theme_list.addItem(item)
+        for name in self._custom_themes:
+            label = ("● " if name == current else "     ") + name + "   (perso)"
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, name)
+            item.setData(Qt.UserRole + 1, 'custom')
+            self.theme_list.addItem(item)
+
+    def _update_buttons(self):
+        item = self.theme_list.currentItem()
+        is_custom = bool(item) and item.data(Qt.UserRole + 1) == 'custom'
+        self.apply_btn.setEnabled(bool(item))
+        self.delete_btn.setEnabled(is_custom)
+        self.export_btn.setEnabled(is_custom)
+
+    def _restyle(self):
+        """Réapplique le thème courant à la fenêtre du gestionnaire."""
+        name = self.config.get('theme', 'Violet profond')
+        self.setStyleSheet(get_theme_stylesheet(name, self._custom_themes))
+        t = get_theme(name, self._custom_themes)
+        self.theme_list.setStyleSheet(_list_style(t))
+
+    def _apply(self):
+        item = self.theme_list.currentItem()
+        if not item:
+            return
+        name = item.data(Qt.UserRole)
+        if self.parent_window and hasattr(self.parent_window, '_apply_theme'):
+            self.parent_window._apply_theme(name)
+        self.config['theme'] = name
+        self._restyle()
+        self._populate_list()
+        self._update_buttons()
+
+    def _export(self):
+        item = self.theme_list.currentItem()
+        if not item:
+            return
+        name = item.data(Qt.UserRole)
+        path = self._file_map.get(name)
+        if not path or not os.path.exists(path):
+            QMessageBox.warning(self, "Erreur", "Fichier du thème introuvable.")
+            return
+        downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+        try:
+            os.makedirs(downloads, exist_ok=True)
+            dest = os.path.join(downloads, os.path.basename(path))
+            shutil.copy2(path, dest)
+            QMessageBox.information(
+                self, "Thème exporté",
+                f"Thème exporté dans :\n{dest}\n\n"
+                "Astuce : vous pouvez aussi glisser le thème directement depuis "
+                "la liste vers Discord ou le bureau pour le partager.")
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Échec de l'export : {e}")
+
+    def _delete(self):
+        item = self.theme_list.currentItem()
+        if not item:
+            return
+        name = item.data(Qt.UserRole)
+        if QMessageBox.question(
+                self, "Confirmation",
+                f"Supprimer le thème « {name} » ?\nCette action est définitive.",
+                QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
+            return
+        from themes_loader import delete_custom_theme, load_custom_themes, theme_file_map
+        ok, err = delete_custom_theme(name)
+        if not ok:
+            QMessageBox.critical(self, "Erreur", f"Impossible de supprimer : {err}")
+            return
+        self._custom_themes = load_custom_themes()
+        # Si le thème supprimé était actif, revenir au thème par défaut.
+        if self.config.get('theme') == name:
+            self.config['theme'] = 'Violet profond'
+            if self.parent_window and hasattr(self.parent_window, '_apply_theme'):
+                self.parent_window._apply_theme('Violet profond')
+        self._file_map = theme_file_map()
+        self.theme_list.set_file_map(self._file_map)
+        self._restyle()
+        self._populate_list()
+        self._update_buttons()
+        QMessageBox.information(self, "Supprimé", f"Thème « {name} » supprimé.")
 
 
 # =============================================================================
