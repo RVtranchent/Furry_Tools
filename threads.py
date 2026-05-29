@@ -296,17 +296,19 @@ class UpdateDownloader(QThread):
 
 
 class UpdateInstaller(QThread):
-    """Installe une mise a jour : extrait l'archive ZIP et remplace les
-    fichiers de code dans le dossier de l'application.
+    """Installe une mise a jour : extrait l'archive ZIP et remplace TOUS les
+    fichiers de la nouvelle version a l'emplacement de l'installation actuelle.
 
-    Les dossiers de donnees utilisateur (themes/, plugins/) ainsi que les
-    dossiers techniques (.git, __pycache__...) sont preserves.
+    Seuls les dossiers purement techniques (.git, .github, __pycache__) sont
+    ignores. La copie ecrase les fichiers existants mais ne supprime pas les
+    fichiers absents de l'archive : les themes/plugins personnels de
+    l'utilisateur (fichiers en plus) sont donc preserves.
     """
     progress = pyqtSignal(int)
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    SKIP_TOP = {'themes', 'plugins', '__pycache__', '.git', '.github', 'logs'}
+    SKIP_TOP = {'__pycache__', '.git', '.github'}
 
     def __init__(self, zip_path, app_dir):
         super().__init__()
