@@ -2,3 +2,9 @@ __pycache__/
 *.pyc
 *.pyo
 .claude/
+
+# Données générées automatiquement au lancement (ensure_themes_dir /
+# ensure_plugins_dir) et thèmes/plugins personnels : non publiés.
+# Les thèmes intégrés vivent dans themes.py, pas dans ce dossier.
+themes/
+plugins/
