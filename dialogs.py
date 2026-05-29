@@ -857,7 +857,12 @@ class SettingsDialog(QDialog):
         self.update_checker.start()
 
     def _on_update_checked(self, has_update, latest, current):
-        if has_update:
+        if not latest:
+            # latest vide => la vérification a échoué (réseau, GitHub indisponible...)
+            self.update_status_label.setText(
+                "Impossible de vérifier les mises à jour (vérifiez votre connexion).")
+            self.download_btn.setEnabled(False)
+        elif has_update:
             self.update_status_label.setText(f"Nouvelle version V{latest} disponible !")
             self.download_btn.setEnabled(True)
             self.latest_version = latest

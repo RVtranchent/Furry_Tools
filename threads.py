@@ -2,6 +2,7 @@
 import os
 import re
 import json
+import time
 import shutil
 import zipfile
 import tempfile
@@ -227,11 +228,21 @@ class UpdateChecker(QThread):
 
     def run(self):
         try:
-            with urllib.request.urlopen(urllib.request.Request(VERSION_URL, headers=UA), timeout=5) as r:
+            # Cache-buster : raw.githubusercontent.com peut servir une ancienne
+            # version.txt depuis son CDN. On force une réponse fraîche.
+            sep = '&' if '?' in VERSION_URL else '?'
+            url = f"{VERSION_URL}{sep}_={int(time.time())}"
+            headers = dict(UA)
+            headers['Cache-Control'] = 'no-cache'
+            headers['Pragma'] = 'no-cache'
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=10) as r:
                 latest = r.read().decode().strip()
+            if not latest:
+                raise ValueError("version.txt distant vide")
             self.update_checked.emit(self._newer(latest, self.current_version), latest, self.current_version)
         except Exception:
-            self.update_checked.emit(False, self.current_version, self.current_version)
+            # latest vide => signale un echec de verification (et non "a jour")
+            self.update_checked.emit(False, "", self.current_version)
 
     @staticmethod
     def _newer(v1, v2):
