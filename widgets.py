@@ -2,7 +2,7 @@
 from PyQt5.QtCore import Qt, QPoint, QSize
 from PyQt5.QtWidgets import (QMenu, QWidget, QGridLayout, QScrollArea, QPushButton,
                              QWidgetAction, QSizePolicy, QAction)
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QCursor
 
 from themes import get_theme
 
@@ -96,7 +96,7 @@ class GameGridMenu(QMenu):
                 add_dlc_action = QAction("Ajouter tous les DLC", menu)
                 add_dlc_action.triggered.connect(lambda: parent_window.add_all_dlc_for_game(appid))
                 menu.addAction(add_dlc_action)
-            menu.exec_(btn.mapToGlobal(QPoint(0, btn.height())))
+            menu.exec_(QCursor.pos())
 
         btn.clicked.connect(show_game_menu)
         self.game_buttons.append((appid, btn, display_name))
