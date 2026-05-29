@@ -25,7 +25,9 @@ def get_current_version():
         base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
         version_file = os.path.join(base, "version.txt")
         if os.path.exists(version_file):
-            with open(version_file, 'r', encoding='utf-8') as f:
+            # utf-8-sig : ignore un éventuel BOM en tête (sinon la comparaison
+            # de versions casse, ex: "﻿1.1.0").
+            with open(version_file, 'r', encoding='utf-8-sig') as f:
                 v = f.read().strip()
                 if v:
                     return v

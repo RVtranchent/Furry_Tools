@@ -236,7 +236,7 @@ class UpdateChecker(QThread):
             headers['Cache-Control'] = 'no-cache'
             headers['Pragma'] = 'no-cache'
             with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=10) as r:
-                latest = r.read().decode().strip()
+                latest = r.read().decode('utf-8-sig').strip()
             if not latest:
                 raise ValueError("version.txt distant vide")
             self.update_checked.emit(self._newer(latest, self.current_version), latest, self.current_version)
@@ -246,9 +246,13 @@ class UpdateChecker(QThread):
 
     @staticmethod
     def _newer(v1, v2):
+        def parse(v):
+            # Tolérant : ignore BOM/espaces et ne garde que les groupes de chiffres.
+            return [int(n) for n in re.findall(r'\d+', v or '')]
         try:
-            a = [int(x) for x in v1.split('.')]
-            b = [int(x) for x in v2.split('.')]
+            a, b = parse(v1), parse(v2)
+            if not a:
+                return False
             for i in range(max(len(a), len(b))):
                 x = a[i] if i < len(a) else 0
                 y = b[i] if i < len(b) else 0
