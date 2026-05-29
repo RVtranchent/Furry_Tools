@@ -868,24 +868,33 @@ class SettingsDialog(QDialog):
     def _download_update(self):
         save_path = os.path.join(tempfile.gettempdir(), "FurryTools_Update.zip")
         self.progress_bar.setVisible(True)
-        self.progress_bar.setValue(0)
+        # L'archive GitHub n'envoie pas toujours sa taille : barre indéterminée.
+        self.progress_bar.setRange(0, 0)
         self.download_btn.setEnabled(False)
         self.update_status_label.setText("Téléchargement de la mise à jour...")
         self.update_downloader = UpdateDownloader(UPDATE_ZIP_URL, save_path)
-        self.update_downloader.progress.connect(self.progress_bar.setValue)
+        self.update_downloader.progress.connect(self._on_download_progress)
         self.update_downloader.finished.connect(self._on_download_done)
         self.update_downloader.error.connect(self._download_err)
         self.update_downloader.start()
 
+    def _on_download_progress(self, value):
+        # Si la taille est connue, on repasse en barre déterminée.
+        if self.progress_bar.maximum() == 0:
+            self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(value)
+
     def _on_download_done(self, path):
         # Version "frozen" (exe) : on ne peut pas remplacer les .py en cours d'exécution.
         if getattr(sys, 'frozen', False):
+            self.progress_bar.setRange(0, 100)
             self.progress_bar.setVisible(False)
             QMessageBox.information(
                 self, "Mise à jour téléchargée",
                 f"Téléchargée dans :\n{path}\n\nRemplacez les fichiers manuellement.")
             return
         self.update_status_label.setText("Installation de la mise à jour...")
+        self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.update_installer = UpdateInstaller(path, APP_DIR)
         self.update_installer.progress.connect(self.progress_bar.setValue)
@@ -922,6 +931,7 @@ class SettingsDialog(QDialog):
         QApplication.quit()
 
     def _download_err(self, msg):
+        self.progress_bar.setRange(0, 100)
         self.progress_bar.setVisible(False)
         if QMessageBox.question(self, "Erreur",
                                 f"Erreur : {msg}\n\nOuvrir GitHub pour télécharger manuellement ?",
